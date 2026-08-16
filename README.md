@@ -62,3 +62,6 @@ build/swave_cli --frames 120 --fps 30 --width 640 --height 360
 para habilitar o runtime real, configure `SWAVE_ENABLE_ONNXRUNTIME=ON` e informe
 `SWAVE_ONNXRUNTIME_ROOT`. CUDA/TensorRT e o driver NVIDIA precisam estar
 compatíveis com a versão do ONNX Runtime escolhida.
+
+no Windows, `scripts/build-alpha.ps1` automatiza build, ctest, smoke fake e
+empacotamento ZIP. ele não baixa dependências externas nem modelos.

@@ -25,6 +25,28 @@ copiadas entre GPUs diferentes.
 .\swave_cli.exe --frames 120 --fps 30 --width 640 --height 360
 ```
 
+para automatizar build, testes, smoke fake e ZIP shell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-alpha.ps1 -Flavor shell
+```
+
+para GPU, informe o root do ONNX Runtime. DLLs CUDA, cuDNN, TensorRT e modelos
+continuam sendo dependências locais e licenciadas:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-alpha.ps1 `
+  -Flavor gpu `
+  -OnnxRuntimeRoot C:\deps\onnxruntime `
+  -ModelsDir .\models `
+  -CudaBinDir C:\deps\cuda\bin `
+  -CuDnnBinDir C:\deps\cudnn\bin `
+  -TensorRtBinDir C:\deps\tensorrt\lib
+```
+
+adicione `-RunGpuSmoke` somente quando os manifestos reais estiverem prontos.
+o script não baixa SDKs, drivers, runtimes ou pesos.
+
 para provider real, os manifestos devem apontar para modelos existentes:
 
 ```powershell
