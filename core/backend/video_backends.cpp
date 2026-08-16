@@ -23,6 +23,14 @@ bool initialize_session(
         error = "inference session is null";
         return false;
     }
+    if (manifest.input_layout != TensorLayout::nchw) {
+        error = "alpha backend supports NCHW manifests only";
+        return false;
+    }
+    if (manifest.input_names.empty() && expected_kind == ModelKind::interpolator) {
+        error = "interpolator manifest requires input_names";
+        return false;
+    }
     return session->load(manifest, options, error);
 }
 
@@ -63,8 +71,14 @@ bool tensor_to_frame(const Tensor& tensor, const FramePacket& source, FramePacke
     const auto height = static_cast<std::uint32_t>(tensor.shape[2]);
     const auto width = static_cast<std::uint32_t>(tensor.shape[3]);
     const auto pixel_count = static_cast<std::size_t>(width) * height;
-    if (tensor.values.size() < pixel_count * 3) {
-        error = "onnx output tensor is smaller than its shape";
+    if (pixel_count > static_cast<std::size_t>(-1) / 3 ||
+        tensor.values.size() != pixel_count * 3) {
+        error = "onnx output tensor size does not match its shape";
+        return false;
+    }
+    if (!source.surface.bytes || source.surface.width == 0 || source.surface.height == 0 ||
+        source.surface.bytes->size() < static_cast<std::size_t>(source.surface.width) * source.surface.height * 4) {
+        error = "source frame has no valid alpha buffer";
         return false;
     }
     auto bytes = std::make_shared<std::vector<std::byte>>(pixel_count * 4);
@@ -76,7 +90,16 @@ bool tensor_to_frame(const Tensor& tensor, const FramePacket& source, FramePacke
         (*bytes)[offset] = to_byte(tensor.values[2 * pixel_count + pixel]);
         (*bytes)[offset + 1] = to_byte(tensor.values[pixel_count + pixel]);
         (*bytes)[offset + 2] = to_byte(tensor.values[pixel]);
-        (*bytes)[offset + 3] = std::byte{0xff};
+        const auto output_x = pixel % width;
+        const auto output_y = pixel / width;
+        const auto source_x = std::min<std::uint32_t>(
+            source.surface.width - 1,
+            static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_x) * source.surface.width / width));
+        const auto source_y = std::min<std::uint32_t>(
+            source.surface.height - 1,
+            static_cast<std::uint32_t>(static_cast<std::uint64_t>(output_y) * source.surface.height / height));
+        const auto source_offset = (static_cast<std::size_t>(source_y) * source.surface.width + source_x) * 4;
+        (*bytes)[offset + 3] = (*source.surface.bytes)[source_offset + 3];
     }
     output = source;
     output.surface.format = PixelFormat::bgra8;
@@ -97,6 +120,7 @@ bool FakeUpscalerBackend::initialize(
         return false;
     }
     session_ = std::move(session);
+    manifest_ = manifest;
     initialized_ = true;
     return true;
 }
@@ -136,6 +160,7 @@ bool FakeInterpolatorBackend::initialize(
         return false;
     }
     session_ = std::move(session);
+    manifest_ = manifest;
     initialized_ = true;
     return true;
 }
@@ -185,6 +210,7 @@ bool OnnxUpscalerBackend::initialize(
         return false;
     }
     session_ = std::move(session);
+    manifest_ = manifest;
     initialized_ = true;
     return true;
 }
@@ -206,7 +232,16 @@ bool OnnxUpscalerBackend::process(
         if (error.empty()) error = "onnx upscaler returned no output";
         return false;
     }
-    return tensor_to_frame(outputs.front(), input, output, error);
+    const auto& tensor = outputs.front();
+    const auto expected_width = static_cast<std::int64_t>(std::lround(
+        static_cast<double>(input.surface.width) * manifest_.native_scale));
+    const auto expected_height = static_cast<std::int64_t>(std::lround(
+        static_cast<double>(input.surface.height) * manifest_.native_scale));
+    if (tensor.shape.size() != 4 || tensor.shape[2] != expected_height || tensor.shape[3] != expected_width) {
+        error = "upscaler output shape does not match manifest native_scale";
+        return false;
+    }
+    return tensor_to_frame(tensor, input, output, error);
 }
 
 void OnnxUpscalerBackend::flush() noexcept {}
@@ -226,6 +261,7 @@ bool OnnxInterpolatorBackend::initialize(
         return false;
     }
     session_ = std::move(session);
+    manifest_ = manifest;
     initialized_ = true;
     return true;
 }
@@ -261,6 +297,37 @@ bool OnnxInterpolatorBackend::process(
     }
     if (!tensor_to_frame(outputs.front(), first, output, error)) {
         return false;
+    }
+    const auto first_alpha_size = static_cast<std::size_t>(first.surface.width) * first.surface.height * 4;
+    const auto second_alpha_size = static_cast<std::size_t>(second.surface.width) * second.surface.height * 4;
+    if (!first.surface.bytes || !second.surface.bytes ||
+        first.surface.bytes->size() < first_alpha_size || second.surface.bytes->size() < second_alpha_size) {
+        error = "interpolator source frames have no valid alpha buffers";
+        return false;
+    }
+    for (std::uint32_t y = 0; y < output.surface.height; ++y) {
+        for (std::uint32_t x = 0; x < output.surface.width; ++x) {
+            const auto first_x = std::min<std::uint32_t>(
+                first.surface.width - 1,
+                static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) * first.surface.width / output.surface.width));
+            const auto first_y = std::min<std::uint32_t>(
+                first.surface.height - 1,
+                static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) * first.surface.height / output.surface.height));
+            const auto second_x = std::min<std::uint32_t>(
+                second.surface.width - 1,
+                static_cast<std::uint32_t>(static_cast<std::uint64_t>(x) * second.surface.width / output.surface.width));
+            const auto second_y = std::min<std::uint32_t>(
+                second.surface.height - 1,
+                static_cast<std::uint32_t>(static_cast<std::uint64_t>(y) * second.surface.height / output.surface.height));
+            const auto first_offset = (static_cast<std::size_t>(first_y) * first.surface.width + first_x) * 4 + 3;
+            const auto second_offset = (static_cast<std::size_t>(second_y) * second.surface.width + second_x) * 4 + 3;
+            const auto first_alpha = static_cast<unsigned>(std::to_integer<unsigned char>((*first.surface.bytes)[first_offset]));
+            const auto second_alpha = static_cast<unsigned>(std::to_integer<unsigned char>((*second.surface.bytes)[second_offset]));
+            const auto alpha = static_cast<unsigned>(std::lround(
+                static_cast<double>(first_alpha) * (1.0 - timestep) + static_cast<double>(second_alpha) * timestep));
+            (*output.surface.bytes)[(static_cast<std::size_t>(y) * output.surface.width + x) * 4 + 3] =
+                static_cast<std::byte>(alpha);
+        }
     }
     output.media_pts = first.media_pts +
         std::chrono::duration_cast<std::chrono::microseconds>(

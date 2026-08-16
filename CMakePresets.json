@@ -1,0 +1,38 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "SWAVE_ENABLE_ONNXRUNTIME": "OFF" }
+    },
+    {
+      "name": "release-shell",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release-shell",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "SWAVE_ENABLE_ONNXRUNTIME": "OFF" }
+    },
+    {
+      "name": "release-gpu",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release-gpu",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SWAVE_ENABLE_ONNXRUNTIME": "ON",
+        "SWAVE_ONNXRUNTIME_ROOT": "$env{SWAVE_ONNXRUNTIME_ROOT}"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release-shell", "configurePreset": "release-shell" },
+    { "name": "release-gpu", "configurePreset": "release-gpu" }
+  ],
+  "testPresets": [
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
+    { "name": "release-shell", "configurePreset": "release-shell", "output": { "outputOnFailure": true } },
+    { "name": "release-gpu", "configurePreset": "release-gpu", "output": { "outputOnFailure": true } }
+  ]
+}

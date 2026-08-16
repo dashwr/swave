@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 
@@ -47,7 +48,8 @@ bool ModelManifest::validate(std::string& error) const {
         error = "model path is empty";
         return false;
     }
-    if (native_scale <= 0.0 || min_scale <= 0.0 || max_scale < min_scale ||
+    if (!std::isfinite(native_scale) || !std::isfinite(min_scale) || !std::isfinite(max_scale) ||
+        native_scale <= 0.0 || min_scale <= 0.0 || max_scale < min_scale ||
         native_scale < min_scale || native_scale > max_scale) {
         error = "invalid scale range";
         return false;
@@ -125,15 +127,7 @@ std::optional<ModelManifest> ModelManifest::from_text(
         else if (key == "input_names") manifest.input_names = value;
         else if (key == "output_names") manifest.output_names = value;
         else if (key == "license") manifest.license = value;
-        else if (key == "native_scale" && !parse_double(value, manifest.native_scale)) {
-            error = "invalid native_scale"; return std::nullopt;
-        } else if (key == "min_scale" && !parse_double(value, manifest.min_scale)) {
-            error = "invalid min_scale"; return std::nullopt;
-        } else if (key == "max_scale" && !parse_double(value, manifest.max_scale)) {
-            error = "invalid max_scale"; return std::nullopt;
-        } else if (key == "arbitrary_timestep" && !parse_bool(value, manifest.arbitrary_timestep)) {
-            error = "invalid arbitrary_timestep"; return std::nullopt;
-        } else if (key == "fixed_shape") {
+        else if (key == "fixed_shape") {
             const auto x = value.find('x');
             if (x == std::string::npos) { error = "invalid fixed_shape"; return std::nullopt; }
             std::uint32_t width{};

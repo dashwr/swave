@@ -3,6 +3,7 @@
 #include <onnxruntime_cxx_api.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <sstream>
 #include <utility>
 
@@ -29,6 +30,7 @@ struct OnnxRuntimeSession::Impl {
     Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "swave"};
     std::unique_ptr<Ort::Session> session;
     InferenceProvider provider{InferenceProvider::cuda};
+    ModelManifest manifest;
     bool loaded{};
 };
 
@@ -45,6 +47,13 @@ bool OnnxRuntimeSession::load(
         return false;
     }
     try {
+        if (!manifest.model_path.empty() && !std::filesystem::exists(manifest.model_path)) {
+            error = "ONNX model does not exist: " + manifest.model_path.string();
+            return false;
+        }
+        if (options.engine_cache && !options.engine_cache_path.empty()) {
+            std::filesystem::create_directories(options.engine_cache_path);
+        }
         Ort::SessionOptions session_options;
         session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
         session_options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
@@ -81,6 +90,7 @@ bool OnnxRuntimeSession::load(
 
         const auto path = manifest.model_path.wstring();
         impl_->session = std::make_unique<Ort::Session>(impl_->env, path.c_str(), session_options);
+        impl_->manifest = manifest;
         impl_->loaded = true;
         return true;
     } catch (const Ort::Exception& exception) {
@@ -117,10 +127,18 @@ bool OnnxRuntimeSession::run(
             auto name = impl_->session->GetOutputNameAllocated(index, allocator);
             fallback_output_names.emplace_back(name.get());
         }
+        const auto manifest_input_names = split_names(impl_->manifest.input_names);
+        const auto manifest_output_names = split_names(impl_->manifest.output_names);
+        const auto& selected_input_names = manifest_input_names.empty() ? fallback_input_names : manifest_input_names;
+        const auto& selected_output_names = manifest_output_names.empty() ? fallback_output_names : manifest_output_names;
+        if (selected_input_names.size() != inputs.size()) {
+            error = "manifest input_names count does not match input tensors";
+            return false;
+        }
         std::vector<const char*> input_names;
         std::vector<const char*> output_names;
-        for (const auto& name : fallback_input_names) input_names.push_back(name.c_str());
-        for (const auto& name : fallback_output_names) output_names.push_back(name.c_str());
+        for (const auto& name : selected_input_names) input_names.push_back(name.c_str());
+        for (const auto& name : selected_output_names) output_names.push_back(name.c_str());
 
         // a sessão CUDA aceita tensores CPU e faz a transferência; zero-copy entra
         // quando as superfícies CUDA/D3D11 forem introduzidas.

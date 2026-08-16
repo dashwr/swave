@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(CTest)
+include(GNUInstallDirs)
 
 add_library(swave_core STATIC
     core/backend/video_backends.cpp
@@ -47,15 +48,41 @@ add_executable(swave_cli apps/swave_cli.cpp)
 target_link_libraries(swave_cli PRIVATE swave_core)
 
 if (WIN32)
+    set(SWAVE_CPPWINRT_ROOT "" CACHE PATH "Optional C++/WinRT include root")
     add_library(swave_windows STATIC platform/windows/window_capture.cpp)
+    target_compile_features(swave_windows PRIVATE cxx_std_20)
     target_compile_definitions(swave_windows PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    if (SWAVE_CPPWINRT_ROOT)
+        target_include_directories(swave_windows PRIVATE "${SWAVE_CPPWINRT_ROOT}/include")
+    endif()
     target_link_libraries(swave_windows PRIVATE swave_core d3d11 dxgi windowsapp)
 
     add_executable(swave_app WIN32 apps/swave_win32.cpp)
     target_compile_definitions(swave_app PRIVATE UNICODE _UNICODE)
-    target_link_libraries(swave_app PRIVATE swave_windows swave_core user32 gdi32 shell32)
+    target_link_libraries(swave_app PRIVATE swave_windows swave_core user32 gdi32 shell32 windowsapp)
 endif()
 
 if (BUILD_TESTING)
     add_test(NAME swave_type_tests COMMAND swave_type_tests)
+endif()
+
+install(TARGETS swave_cli RUNTIME DESTINATION .)
+install(FILES
+    README.md
+    THIRD_PARTY_NOTICES.txt
+    DESTINATION .)
+install(FILES
+    docs/qa.md
+    docs/README-WINDOWS.md
+    docs/architecture.md
+    docs/plan.md
+    docs/flows.md
+    docs/ui.md
+    DESTINATION docs)
+install(DIRECTORY models/ DESTINATION models OPTIONAL)
+install(DIRECTORY cache/engines/ DESTINATION cache/engines OPTIONAL)
+
+if (WIN32)
+    install(TARGETS swave_app RUNTIME DESTINATION .)
+    install(FILES apps/swave_app.manifest DESTINATION . RENAME swave_app.exe.manifest)
 endif()

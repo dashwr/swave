@@ -9,6 +9,10 @@ adapter ONNX Runtime opcional e backend WGC/D3D11 opcional para Windows. a janel
 de apresentação ainda usa o shell GDI de QA; extensão, áudio e renderização D3D11
 final são gates seguintes.
 
+o corte alpha portátil é montado por `scripts/build-release.ps1` e
+`scripts/package-runtime.ps1`. a montagem GPU exige que o operador forneça um
+runtime ONNX Runtime/CUDA/TensorRT compatível e modelos licenciados.
+
 ## objetivo
 
 detectar automaticamente vídeos em Chrome/Edge, processá-los com atraso configurável de aproximadamente 1–2 s e exibir o resultado numa janela separada. o áudio deve sair pelo app; o navegador deve permanecer mudo/pausado conforme o modo de entrada.

@@ -35,6 +35,7 @@ public:
 
 private:
     std::shared_ptr<IInferenceSession> session_;
+    ModelManifest manifest_;
     bool initialized_{};
 };
 
@@ -47,6 +48,7 @@ public:
 
 private:
     std::shared_ptr<IInferenceSession> session_;
+    ModelManifest manifest_;
     bool initialized_{};
 };
 
@@ -59,6 +61,7 @@ public:
 
 private:
     std::shared_ptr<IInferenceSession> session_;
+    ModelManifest manifest_;
     bool initialized_{};
 };
 
@@ -71,6 +74,7 @@ public:
 
 private:
     std::shared_ptr<IInferenceSession> session_;
+    ModelManifest manifest_;
     bool initialized_{};
 };
 

@@ -42,6 +42,13 @@ public:
         available_.notify_all();
     }
 
+    void reset() {
+        std::lock_guard lock(mutex_);
+        queue_.clear();
+        closed_ = false;
+        available_.notify_all();
+    }
+
     [[nodiscard]] std::size_t size() const {
         std::lock_guard lock(mutex_);
         return queue_.size();

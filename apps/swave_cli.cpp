@@ -81,6 +81,9 @@ swave::core::ModelManifest manifest(
     result.min_scale = kind == swave::core::ModelKind::upscaler ? 1.1 : 1.0;
     result.max_scale = kind == swave::core::ModelKind::upscaler ? 5.0 : 1.0;
     result.arbitrary_timestep = arbitrary_timestep;
+    result.input_names = kind == swave::core::ModelKind::interpolator
+        ? "frame0,frame1,timestep" : "input";
+    result.output_names = "output";
     return result;
 }
 

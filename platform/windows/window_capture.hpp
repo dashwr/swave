@@ -28,11 +28,11 @@ public:
     void stop() noexcept;
     [[nodiscard]] bool try_receive(core::FramePacket& frame);
     [[nodiscard]] bool running() const noexcept;
-    [[nodiscard]] const std::string& last_error() const noexcept;
+    [[nodiscard]] std::string last_error() const;
 
 private:
     struct Impl;
-    std::unique_ptr<Impl> impl_;
+    std::shared_ptr<Impl> impl_;
 };
 
 } // namespace swave::platform

@@ -40,6 +40,9 @@ ModelManifest make_manifest(ModelKind kind, const char* id, double native_scale,
     manifest.min_scale = kind == ModelKind::upscaler ? 1.1 : 1.0;
     manifest.max_scale = kind == ModelKind::upscaler ? 5.0 : 1.0;
     manifest.arbitrary_timestep = timestep;
+    manifest.input_names = kind == ModelKind::interpolator
+        ? "frame0,frame1,timestep" : "input";
+    manifest.output_names = "output";
     return manifest;
 }
 
@@ -316,6 +319,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
         TranslateMessage(&message);
         DispatchMessageW(&message);
+    }
+    if (g_capture) {
+        g_capture->stop();
+        g_capture.reset();
     }
     g_pipeline->stop();
     return static_cast<int>(message.wParam);

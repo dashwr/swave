@@ -35,6 +35,8 @@ int main() {
         "kind=upscaler\n"
         "precision=fp16\n"
         "model_path=models/srvgv.onnx\n"
+        "input_names=input\n"
+        "output_names=output\n"
         "native_scale=4\n"
         "min_scale=1.1\n"
         "max_scale=5\n"
@@ -83,6 +85,8 @@ int main() {
     interpolator_manifest.id = "rife-test";
     interpolator_manifest.kind = ModelKind::interpolator;
     interpolator_manifest.arbitrary_timestep = true;
+    interpolator_manifest.input_names = "frame0,frame1,timestep";
+    interpolator_manifest.output_names = "output";
     auto interpolator_session = std::make_shared<FakeInferenceSession>();
     FakeInterpolatorBackend interpolator;
     assert(interpolator.initialize(interpolator_manifest, interpolator_session, {}, error));
@@ -94,7 +98,11 @@ int main() {
     interpolator.close();
 
     auto tensor_upscaler = std::make_shared<OnnxUpscalerBackend>();
-    assert(tensor_upscaler->initialize(*manifest, std::make_shared<FakeInferenceSession>(), {}, error));
+    ModelManifest tensor_manifest = *manifest;
+    tensor_manifest.native_scale = 1.0;
+    tensor_manifest.min_scale = 1.0;
+    tensor_manifest.max_scale = 1.0;
+    assert(tensor_upscaler->initialize(tensor_manifest, std::make_shared<FakeInferenceSession>(), {}, error));
     FramePacket tensor_upscaled;
     assert(tensor_upscaler->process(frame, tensor_upscaled, error));
     assert(tensor_upscaled.surface.width == frame.surface.width);

@@ -27,6 +27,18 @@ o executável precisa das DLLs redistribuíveis do ONNX Runtime, CUDA e TensorRT
 compatíveis. engines TensorRT devem ser geradas na própria RTX 3060; não copiar
 engine de outra GPU.
 
+## montagem alpha portátil
+
+```powershell
+.\scripts\build-release.ps1 -Flavor shell
+.\scripts\package-runtime.ps1 `
+  -StageDir .\artifacts\stage-shell `
+  -OutputZip .\artifacts\swave-alpha-shell-win64.zip
+```
+
+para GPU, informe explicitamente `-OnnxRuntimeRoot` e `-ModelsDir`. o script não
+baixa DLLs nem modelos e não instala SDKs.
+
 ## critérios do primeiro QA funcional
 
 - o smoke test passa sem queda ou erro;

@@ -1,0 +1,9 @@
+sWAVe alpha
+
+O repositório contém somente código próprio e interfaces para dependências
+externas. Nenhum peso de modelo, DLL CUDA, cuDNN, TensorRT ou ONNX Runtime é
+distribuído neste repositório.
+
+Antes de montar uma release, verifique e inclua os avisos e licenças das versões
+realmente usadas, incluindo os modelos SRVGGNetCompact/Real-ESRGAN e Practical-RIFE.
+O driver NVIDIA é requisito do sistema e não deve ser copiado para o pacote.
