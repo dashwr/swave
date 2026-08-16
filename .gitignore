@@ -1,0 +1,10 @@
+build/
+.vs/
+.vscode/
+*.user
+*.suo
+models/*.onnx
+models/*.engine
+models/*.pth
+models/*.bin
+artifacts/
