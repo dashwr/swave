@@ -38,6 +38,16 @@ using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 
+template <typename T>
+ComPtr<T> get_dxgi_interface(winrt::Windows::Foundation::IInspectable const& object) {
+    auto access = object.as<
+        winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+    ComPtr<T> result;
+    winrt::check_hresult(access->GetInterface(
+        __uuidof(T), reinterpret_cast<void**>(result.GetAddressOf())));
+    return result;
+}
+
 } // namespace
 
 struct WindowCaptureSource::Impl {
@@ -152,11 +162,7 @@ bool WindowCaptureSource::start(std::string& error) {
                 try {
                     auto frame = pool.TryGetNextFrame();
                     if (!frame || !state->running.load(std::memory_order_acquire)) return;
-                    ComPtr<ID3D11Texture2D> source;
-                    winrt::check_hresult(GetDXGIInterfaceFromObject(
-                        reinterpret_cast<IInspectable*>(winrt::get_abi(frame.Surface())),
-                        __uuidof(ID3D11Texture2D),
-                        reinterpret_cast<void**>(source.GetAddressOf())));
+                    auto source = get_dxgi_interface<ID3D11Texture2D>(frame.Surface());
 
                     D3D11_TEXTURE2D_DESC description{};
                     source->GetDesc(&description);
