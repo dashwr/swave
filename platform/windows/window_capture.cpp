@@ -5,6 +5,7 @@
 #include "core/queue/bounded_queue.hpp"
 
 #include <windows.h>
+#include <unknwn.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <windows.graphics.capture.interop.h>
@@ -38,10 +39,16 @@ using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 
+MIDL_INTERFACE("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1")
+IDirect3DDxgiInterfaceAccess : public IUnknown {
+    virtual HRESULT STDMETHODCALLTYPE GetInterface(REFIID iid, void** object) = 0;
+};
+
 template <typename T>
 ComPtr<T> get_dxgi_interface(winrt::Windows::Foundation::IInspectable const& object) {
-    auto access = object.as<
-        winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+    ComPtr<IDirect3DDxgiInterfaceAccess> access;
+    winrt::check_hresult(winrt::get_unknown(object)->QueryInterface(
+        IID_PPV_ARGS(access.GetAddressOf())));
     ComPtr<T> result;
     winrt::check_hresult(access->GetInterface(
         __uuidof(T), reinterpret_cast<void**>(result.GetAddressOf())));
