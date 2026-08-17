@@ -6,6 +6,8 @@ param(
     [string]$CudaBinDir,
     [string]$CuDnnBinDir,
     [string]$TensorRtBinDir,
+    [string]$Generator = "Visual Studio 17 2022",
+    [ValidateSet("x64", "Win32", "ARM64")][string]$Architecture = "x64",
     [ValidateSet("cuda", "tensorrt")][string]$GpuProvider = "tensorrt",
     [switch]$RunGpuSmoke,
     [int]$GpuWidth = 640,
@@ -46,6 +48,8 @@ $buildArgs = @{
     Flavor = $Flavor
     BuildDir = $buildDir
     StageDir = $stageDir
+    Generator = $Generator
+    Architecture = $Architecture
 }
 if (-not [string]::IsNullOrWhiteSpace($OnnxRuntimeRoot)) {
     $buildArgs.OnnxRuntimeRoot = $OnnxRuntimeRoot

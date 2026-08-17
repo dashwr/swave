@@ -31,6 +31,10 @@ para automatizar build, testes, smoke fake e ZIP shell:
 powershell -ExecutionPolicy Bypass -File .\scripts\build-alpha.ps1 -Flavor shell
 ```
 
+o script usa `Visual Studio 17 2022` com arquitetura `x64` por padrão, sem
+depender de abrir um Developer PowerShell. para outra instalação, informe
+`-Generator` e `-Architecture`.
+
 para GPU, informe o root do ONNX Runtime. DLLs CUDA, cuDNN, TensorRT e modelos
 continuam sendo dependências locais e licenciadas:
 
