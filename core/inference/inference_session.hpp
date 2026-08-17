@@ -24,7 +24,7 @@ struct Tensor {
 
 struct InferenceOptions {
     InferenceProvider provider{InferenceProvider::tensorrt};
-    std::size_t workspace_bytes{4ULL * 1024ULL * 1024ULL * 1024ULL};
+    std::uint64_t workspace_bytes{4ULL * 1024ULL * 1024ULL * 1024ULL};
     bool fp16{true};
     bool engine_cache{true};
     std::filesystem::path engine_cache_path{"cache/engines"};

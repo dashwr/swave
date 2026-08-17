@@ -12,6 +12,7 @@
 #include <wrl/client.h>
 
 #include <winrt/base.h>
+#include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
@@ -103,9 +104,9 @@ bool WindowCaptureSource::start(std::string& error) {
             levels,
             ARRAYSIZE(levels),
             D3D11_SDK_VERSION,
-            impl_->device.put(),
+            impl_->device.GetAddressOf(),
             &feature_level,
-            impl_->context.put());
+            impl_->context.GetAddressOf());
         if (device_result == E_INVALIDARG) {
             impl_->device.Reset();
             impl_->context.Reset();
@@ -121,13 +122,14 @@ bool WindowCaptureSource::start(std::string& error) {
                 fallback_levels,
                 ARRAYSIZE(fallback_levels),
                 D3D11_SDK_VERSION,
-                impl_->device.put(),
+                impl_->device.GetAddressOf(),
                 &feature_level,
-                impl_->context.put());
+                impl_->context.GetAddressOf());
         }
         winrt::check_hresult(device_result);
 
-        auto dxgi_device = impl_->device.As<IDXGIDevice>();
+        ComPtr<IDXGIDevice> dxgi_device;
+        winrt::check_hresult(impl_->device.As(&dxgi_device));
         winrt::check_hresult(CreateDirect3D11DeviceFromDXGIDevice(
             dxgi_device.Get(), reinterpret_cast<IInspectable**>(winrt::put_abi(impl_->winrt_device))));
 
@@ -150,10 +152,10 @@ bool WindowCaptureSource::start(std::string& error) {
                 try {
                     auto frame = pool.TryGetNextFrame();
                     if (!frame || !state->running.load(std::memory_order_acquire)) return;
-                    auto access = frame.Surface().as<IDirect3DDxgiInterfaceAccess>();
+                    auto access = frame.Surface().as<::IDirect3DDxgiInterfaceAccess>();
                     ComPtr<ID3D11Texture2D> source;
                     winrt::check_hresult(access->GetInterface(
-                        __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(source.put())));
+                        __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(source.GetAddressOf())));
 
                     D3D11_TEXTURE2D_DESC description{};
                     source->GetDesc(&description);
@@ -188,7 +190,7 @@ bool WindowCaptureSource::start(std::string& error) {
                         staging_description.MiscFlags = 0;
                         state->staging.Reset();
                         winrt::check_hresult(state->device->CreateTexture2D(
-                            &staging_description, nullptr, state->staging.put()));
+                            &staging_description, nullptr, state->staging.GetAddressOf()));
                     }
                     state->context->CopyResource(state->staging.Get(), source.Get());
                     state->context->Flush();
