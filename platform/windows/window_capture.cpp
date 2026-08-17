@@ -152,10 +152,11 @@ bool WindowCaptureSource::start(std::string& error) {
                 try {
                     auto frame = pool.TryGetNextFrame();
                     if (!frame || !state->running.load(std::memory_order_acquire)) return;
-                    auto access = frame.Surface().as<::IDirect3DDxgiInterfaceAccess>();
                     ComPtr<ID3D11Texture2D> source;
-                    winrt::check_hresult(access->GetInterface(
-                        __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(source.GetAddressOf())));
+                    winrt::check_hresult(GetDXGIInterfaceFromObject(
+                        reinterpret_cast<IInspectable*>(winrt::get_abi(frame.Surface())),
+                        __uuidof(ID3D11Texture2D),
+                        reinterpret_cast<void**>(source.GetAddressOf())));
 
                     D3D11_TEXTURE2D_DESC description{};
                     source->GetDesc(&description);
@@ -227,7 +228,7 @@ bool WindowCaptureSource::start(std::string& error) {
                             frame.SystemRelativeTime().count()));
                     packet.capture_time = std::chrono::steady_clock::now();
                     packet.sequence = state->sequence++;
-                    state->frames.try_push(std::move(packet));
+                    (void)state->frames.try_push(std::move(packet));
                 } catch (const winrt::hresult_error& exception) {
                     state->set_error(winrt::to_string(exception.message()));
                 } catch (const std::exception& exception) {
