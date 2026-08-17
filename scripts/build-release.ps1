@@ -35,9 +35,12 @@ if ($Flavor -eq "gpu") {
     $configureArgs += "-DSWAVE_ENABLE_ONNXRUNTIME=OFF"
 }
 cmake @configureArgs
+if ($LASTEXITCODE -ne 0) { throw "configuração CMake falhou" }
 cmake --build $BuildDir --config Release
+if ($LASTEXITCODE -ne 0) { throw "compilação CMake falhou" }
 if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
 cmake --install $BuildDir --config Release --prefix $StageDir
+if ($LASTEXITCODE -ne 0) { throw "instalação CMake falhou" }
 New-Item -ItemType Directory -Force "$StageDir/cache/engines" | Out-Null
 New-Item -ItemType Directory -Force "$StageDir/models" | Out-Null
 Write-Host "stage criado em $StageDir"
