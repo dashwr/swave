@@ -65,3 +65,9 @@ compatíveis com a versão do ONNX Runtime escolhida.
 
 no Windows, `scripts/build-alpha.ps1` automatiza build, ctest, smoke fake e
 empacotamento ZIP. ele não baixa dependências externas nem modelos.
+
+atalho para a montagem shell no Developer PowerShell x64:
+
+```powershell
+.\scripts\build-shell.ps1
+```

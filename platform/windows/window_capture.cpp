@@ -19,6 +19,7 @@
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 
 #include <chrono>
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <exception>
@@ -226,10 +227,20 @@ bool WindowCaptureSource::start(std::string& error) {
                     auto bytes = std::make_shared<std::vector<std::byte>>(width * height * 4);
                     const auto row_bytes = static_cast<std::size_t>(description.Width) * 4;
                     for (std::uint32_t row = 0; row < description.Height; ++row) {
-                        std::memcpy(
-                            bytes->data() + row * row_bytes,
-                            static_cast<const std::byte*>(mapped.pData) + row * mapped.RowPitch,
-                            row_bytes);
+                        const auto* source_row = static_cast<const std::byte*>(mapped.pData) + row * mapped.RowPitch;
+                        auto* target_row = bytes->data() + row * row_bytes;
+                        std::memcpy(target_row, source_row, row_bytes);
+                        // WGC entrega BGRA premultiplicado; o GDI e os backends usam canais retos.
+                        for (std::size_t pixel = 0; pixel < width; ++pixel) {
+                            const auto offset = pixel * 4;
+                            const auto alpha = std::to_integer<unsigned>(target_row[offset + 3]);
+                            if (alpha == 0 || alpha == 255) continue;
+                            for (std::size_t channel = 0; channel < 3; ++channel) {
+                                const auto value = std::to_integer<unsigned>(target_row[offset + channel]);
+                                target_row[offset + channel] = static_cast<std::byte>(
+                                    std::min(255U, (value * 255U + alpha / 2U) / alpha));
+                            }
+                        }
                     }
                     core::FramePacket packet;
                     packet.surface.format = core::PixelFormat::bgra8;

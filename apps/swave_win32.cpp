@@ -8,11 +8,13 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -27,9 +29,18 @@ FramePacket g_current_frame;
 std::unique_ptr<SyntheticSource> g_source;
 std::unique_ptr<swave::platform::WindowCaptureSource> g_capture;
 std::unique_ptr<ProcessingPipeline> g_pipeline;
-HWND g_title_edit{};
+HWND g_window_combo{};
 bool g_using_capture{};
 std::wstring g_provider_label = L"fake";
+
+void show_utf8_error(HWND owner, const std::string& message, const wchar_t* title) {
+    const int size = MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), nullptr, 0);
+    std::wstring wide(static_cast<std::size_t>(std::max(size, 0)), L'\0');
+    if (size > 0) {
+        MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), wide.data(), size);
+    }
+    MessageBoxW(owner, wide.empty() ? L"erro desconhecido" : wide.c_str(), title, MB_ICONERROR);
+}
 
 ModelManifest make_manifest(ModelKind kind, const char* id, double native_scale, bool timestep) {
     ModelManifest manifest;
@@ -151,43 +162,23 @@ void paint_settings(HDC dc, const RECT& client) {
         L"reprodução\n\n  preset       balanced\n  escala       2.0x\n  interpolação RIFE 4.25\n  saída        60 fps",
         RGB(196, 196, 196));
     RECT footer{24, client.bottom - 48, client.right - 24, client.bottom - 20};
-    draw_text(dc, footer, L"WGC: informe parte do título da janela e pressione capturar", RGB(142, 142, 142));
-}
-
-struct WindowSearch {
-    std::wstring needle;
-    HWND result{};
-};
-
-BOOL CALLBACK find_window(HWND window, LPARAM parameter) {
-    auto& search = *reinterpret_cast<WindowSearch*>(parameter);
-    if (!IsWindowVisible(window) || window == g_content_window || window == g_settings_window) {
-        return TRUE;
-    }
-    wchar_t title[512]{};
-    GetWindowTextW(window, title, ARRAYSIZE(title));
-    if (search.needle.empty() || std::wstring(title).find(search.needle) != std::wstring::npos) {
-        search.result = window;
-        return FALSE;
-    }
-    return TRUE;
+    draw_text(dc, footer, L"WGC: selecione uma janela visível e pressione capturar", RGB(142, 142, 142));
 }
 
 void start_window_capture() {
-    wchar_t title[512]{};
-    GetWindowTextW(g_title_edit, title, ARRAYSIZE(title));
-    WindowSearch search{title};
-    EnumWindows(find_window, reinterpret_cast<LPARAM>(&search));
-    if (!search.result) {
-        MessageBoxW(g_settings_window, L"nenhuma janela visível corresponde ao título", L"sWAVe", MB_ICONWARNING);
+    const auto selection = static_cast<int>(SendMessageW(g_window_combo, CB_GETCURSEL, 0, 0));
+    if (selection == CB_ERR) {
+        MessageBoxW(g_settings_window, L"selecione uma janela visível", L"sWAVe", MB_ICONWARNING);
         return;
     }
+    const auto target = reinterpret_cast<HWND>(SendMessageW(g_window_combo, CB_GETITEMDATA, selection, 0));
+    if (!target || !IsWindow(target)) return;
 
     auto capture = std::make_unique<swave::platform::WindowCaptureSource>(
-        swave::platform::WindowCaptureConfig{search.result, 4});
+        swave::platform::WindowCaptureConfig{target, 4});
     std::string error;
     if (!capture->start(error)) {
-        MessageBoxA(g_settings_window, error.c_str(), "sWAVe · WGC", MB_ICONERROR);
+        show_utf8_error(g_settings_window, error, L"sWAVe · WGC");
         return;
     }
     g_capture = std::move(capture);
@@ -217,6 +208,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     case WM_COMMAND:
         if (LOWORD(wparam) == 1001) start_window_capture();
         return 0;
+    case WM_CLOSE:
+        DestroyWindow(window);
+        return 0;
     case WM_TIMER:
         if (wparam == kTimerId) tick();
         return 0;
@@ -233,6 +227,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     case WM_DESTROY:
         if (window == g_content_window) {
             KillTimer(window, kTimerId);
+            if (g_settings_window && IsWindow(g_settings_window)) DestroyWindow(g_settings_window);
             PostQuitMessage(0);
         }
         return 0;
@@ -261,7 +256,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     const auto interpolator_manifest = load_or_default(
         options.interpolator_manifest, ModelKind::interpolator, "rife-test", 1.0, true, error);
     if (!upscaler_manifest || !interpolator_manifest) {
-        MessageBoxA(nullptr, error.c_str(), "sWAVe · manifesto", MB_ICONERROR);
+        show_utf8_error(nullptr, error, L"sWAVe · manifesto");
         return 1;
     }
 
@@ -287,7 +282,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     if (!upscaler_session || !interpolator_session ||
         !upscaler->initialize(*upscaler_manifest, upscaler_session, inference_options, error) ||
         !interpolator->initialize(*interpolator_manifest, interpolator_session, inference_options, error)) {
-        MessageBoxA(nullptr, error.c_str(), "sWAVe", MB_ICONERROR);
+        show_utf8_error(nullptr, error, L"sWAVe");
         return 1;
     }
     g_pipeline = std::make_unique<ProcessingPipeline>(
@@ -307,9 +302,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     if (!g_content_window || !g_settings_window) return 1;
     ShowWindow(g_content_window, show_command);
     ShowWindow(g_settings_window, SW_SHOW);
-    g_title_edit = CreateWindowExW(
-        WS_EX_CLIENTEDGE, L"EDIT", L"Chrome", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-        24, 280, 360, 26, g_settings_window, reinterpret_cast<HMENU>(1000), instance, nullptr);
+    g_window_combo = CreateWindowExW(
+        WS_EX_CLIENTEDGE, L"COMBOBOX", nullptr,
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        24, 280, 360, 220, g_settings_window, reinterpret_cast<HMENU>(1002), instance, nullptr);
+    std::vector<HWND> windows;
+    EnumWindows([](HWND window, LPARAM parameter) -> BOOL {
+        auto& targets = *reinterpret_cast<std::vector<HWND>*>(parameter);
+        if (!IsWindowVisible(window) || window == g_content_window || window == g_settings_window) return TRUE;
+        wchar_t title[512]{};
+        GetWindowTextW(window, title, ARRAYSIZE(title));
+        if (title[0] != L'\0') targets.push_back(window);
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&windows));
+    for (const auto target : windows) {
+        wchar_t title[512]{};
+        GetWindowTextW(target, title, ARRAYSIZE(title));
+        const auto index = static_cast<int>(SendMessageW(g_window_combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(title)));
+        SendMessageW(g_window_combo, CB_SETITEMDATA, index, reinterpret_cast<LPARAM>(target));
+    }
+    if (!windows.empty()) SendMessageW(g_window_combo, CB_SETCURSEL, 0, 0);
     CreateWindowW(
         L"BUTTON", L"capturar janela", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         396, 280, 150, 26, g_settings_window, reinterpret_cast<HMENU>(1001), instance, nullptr);
