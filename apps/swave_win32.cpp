@@ -35,7 +35,7 @@ std::wstring g_provider_label = L"fake";
 
 void show_utf8_error(HWND owner, const std::string& message, const wchar_t* title) {
     const int size = MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), nullptr, 0);
-    std::wstring wide(static_cast<std::size_t>(std::max(size, 0)), L'\0');
+    std::wstring wide(static_cast<std::size_t>((std::max)(size, 0)), L'\0');
     if (size > 0) {
         MultiByteToWideChar(CP_UTF8, 0, message.data(), static_cast<int>(message.size()), wide.data(), size);
     }
